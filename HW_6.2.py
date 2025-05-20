@@ -22,7 +22,7 @@ class Configuration:
             GLOBAL_CONFIG.update(self.original_config)
             raise ValueError("Invalid configuration")
 
-        return self
+        return self  # <-- Return self instead of None
 
     def __exit__(self, exc_type, exc_value, traceback):
         # Restore original configuration
@@ -84,6 +84,16 @@ def run_tests():
             print("This text shouldn't appear")
     except ValueError as e:
         print("\nTest 5: Caught expected error:", e)
+    print("After block:", GLOBAL_CONFIG)
+
+    # Test 6: Using 'as' to access context manager
+    try:
+        with Configuration({"max_retries": 7}, validator=validate_config) as config:
+            print("\nTest 6: Using 'as' to access context manager")
+            print("Inside block:", GLOBAL_CONFIG)
+            print("Context manager updates:", config.updates)
+    except Exception as e:
+        print("Error:", e)
     print("After block:", GLOBAL_CONFIG)
 
 
