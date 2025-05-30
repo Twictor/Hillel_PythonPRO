@@ -12,10 +12,16 @@ class User:
         self.email = email
         self.role = role
 
-    def send_notification(self, notification):
-        # Print out the notification with user info
+    def send_notification(self, notification: "Notification") -> None:
+        # Check that the notification and role match
+        if self.role == Role.STUDENT and not isinstance(notification, (Notification, StudentNotification)):
+            raise TypeError("Students can only receive general or student notifications.")
+        if self.role == Role.TEACHER and not isinstance(notification, (Notification, TeacherNotification)):
+            raise TypeError("Teachers can only receive general or teacher notifications.")
+
+        # Print notification
         print(f"Sending notification to {self.name} ({self.email}) as {self.role}:")
-        print(notification.format())
+        print(notification)
         print()  # Add empty line for better readability
 
 
@@ -39,24 +45,20 @@ class Notification:
 
 class StudentNotification(Notification):
     def format(self) -> str:
-        # Add "Sent via Student Portal" to the message
         base_message = super().format()
         return f"{base_message}\nSent via Student Portal"
 
 
 class TeacherNotification(Notification):
     def format(self) -> str:
-        # Add "Teacher's Desk Notification" to the message
         base_message = super().format()
         return f"{base_message}\nTeacher's Desk Notification"
 
 
 def main():
-    # Create users of both types
     student = User("Alice", "alice@gmail.com", Role.STUDENT)
     teacher = User("Jack", "jack@gmail.com", Role.TEACHER)
 
-    # Create notifications
     general_notification = Notification(
         "Important Announcement",
         "School will be closed tomorrow due to weather conditions."
@@ -73,7 +75,6 @@ def main():
         "There will be a staff meeting at 3pm in the conference room."
     )
 
-    # Have users print (aka send) their notifications
     student.send_notification(general_notification)
     teacher.send_notification(general_notification)
 
