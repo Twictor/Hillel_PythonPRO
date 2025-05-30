@@ -10,6 +10,8 @@ users = [
             {"username": "jack", "password": "qwe123"}
         ]
 """
+import functools
+
 
 class Price:
     """Class for working with monetary amounts and currencies"""
@@ -19,20 +21,43 @@ class Price:
         "CHF": {"USD": 1.1, "EUR": 0.9}
     }
 
-    def __init__(self, amount: float, currency: str):
-        self.amount = amount
-        self.currency = currency.upper()
+    SUPPORTED_CURRENCIES = EXCHANGE_RATES.keys()
 
-    def _convert_to(self, target_currency: str) -> 'Price':
+    def __init__(self, amount: float, currency: str):
+        if amount < 0:
+            raise ValueError("Amount cannot be negative.")
+        currency = currency.upper()
+        if currency not in self.SUPPORTED_CURRENCIES:
+            raise ValueError(f"Unsupported currency: {currency}")
+        self.amount = amount
+        self.currency = currency
+
+    def _convert_to(self, target_currency: str, visited=None) -> 'Price':
+        target_currency = target_currency.upper()
+        visited = visited or set()
+
         if self.currency == target_currency:
             return self
 
-        if target_currency not in self.EXCHANGE_RATES.get(self.currency, {}):
-            chf = self._convert_to("CHF")
-            return chf._convert_to(target_currency)
+        if self.currency in visited:
+            raise ValueError(f"Conversion loop detected for currency: {self.currency}")
+        visited.add(self.currency)
 
-        rate = self.EXCHANGE_RATES[self.currency][target_currency]
-        return Price(self.amount * rate, target_currency)
+        # Direct conversion is possible
+        if target_currency in self.EXCHANGE_RATES.get(self.currency, {}):
+            rate = self.EXCHANGE_RATES[self.currency][target_currency]
+            return Price(self.amount * rate, target_currency)
+
+        # Try to convert via intermediate currencies
+        for intermediate_currency in self.EXCHANGE_RATES.get(self.currency, {}):
+            try:
+                intermediate_price = Price(self.amount * self.EXCHANGE_RATES[self.currency][intermediate_currency],
+                                           intermediate_currency)
+                return intermediate_price._convert_to(target_currency, visited)
+            except ValueError:
+                continue  # Try the next route
+
+        raise ValueError(f"Conversion path from {self.currency} to {target_currency} not found")
 
     def __add__(self, other: 'Price') -> 'Price':
         if self.currency != other.currency:
@@ -43,8 +68,12 @@ class Price:
     def __sub__(self, other: 'Price') -> 'Price':
         if self.currency != other.currency:
             converted = other._convert_to(self.currency)
-            return Price(self.amount - converted.amount, self.currency)
-        return Price(self.amount - other.amount, self.currency)
+        else:
+            converted = other
+        result = self.amount - converted.amount
+        if result < 0:
+            raise ValueError("Resulting amount cannot be negative.")
+        return Price(result, self.currency)
 
     def __repr__(self):
         return f"{round(self.amount, 2)} {self.currency}"
@@ -62,6 +91,7 @@ class AuthDecorator:
         self.authenticated_user = None
 
     def __call__(self, func):
+        @functools.wraps(func)
         def wrapper(*args, **kwargs):
             if self.authenticated_user:
                 print(f"Authenticated as: {self.authenticated_user['username']}")
@@ -80,7 +110,6 @@ class AuthDecorator:
                     print(f"Welcome, {username}!")
                     return func(*args, **kwargs)
                 print("Error: Invalid credentials")
-
         return wrapper
 
 
@@ -92,11 +121,14 @@ auth = AuthDecorator()
 def calculate_prices():
     """Price calculation function requiring authorization"""
     print("\nAvailable currencies: USD, EUR, CHF")
-    a = Price(float(input("Amount 1: ")), input("Currency 1: ").upper())
-    b = Price(float(input("Amount 2: ")), input("Currency 2: ").upper())
+    try:
+        a = Price(float(input("Amount 1: ")), input("Currency 1: "))
+        b = Price(float(input("Amount 2: ")), input("Currency 2: "))
 
-    print(f"\n{a} + {b} = {a + b}")
-    print(f"{a} - {b} = {a - b}")
+        print(f"\n{a} + {b} = {a + b}")
+        print(f"{a} - {b} = {a - b}")
+    except Exception as e:
+        print(f"Error: {e}")
 
 
 @auth
